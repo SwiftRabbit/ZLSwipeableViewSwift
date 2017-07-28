@@ -17,14 +17,14 @@ class Scheduler : NSObject {
     var action: Action?
     var endCondition: EndCondition?
     
-    func scheduleRepeatedly(_ action: @escaping Action, interval: TimeInterval, endCondition: @escaping EndCondition)  {
+    func scheduleRepeatedly(action: @escaping Action, interval: TimeInterval, endCondition: @escaping EndCondition)  {
         guard timer == nil && interval > 0 else { return }
         self.action = action
         self.endCondition = endCondition
-        timer = Timer.scheduledTimer(timeInterval: interval, target: self, selector: #selector(Scheduler.doAction(_:)), userInfo: nil, repeats: true)
+        timer = Timer.scheduledTimer(timeInterval: interval, target: self, selector: #selector(Scheduler.doAction(timer:)), userInfo: nil, repeats: true)
     }
     
-    func doAction(_ timer: Timer) {
+    @objc func doAction(timer: Timer) {
         guard let action = action, let endCondition = endCondition, !endCondition() else {
             timer.invalidate()
             self.timer = nil

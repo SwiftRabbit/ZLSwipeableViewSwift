@@ -13,50 +13,50 @@ class ViewManager : NSObject {
     // Snapping -> [Moving]+ -> Snapping
     // Snapping -> [Moving]+ -> Swiping -> Snapping
     enum State {
-        case snapping(CGPoint), moving(CGPoint), swiping(CGPoint, CGVector)
+        case Snapping(CGPoint), Moving(CGPoint), Swiping(CGPoint, CGVector)
     }
     
     var state: State {
         didSet {
-            if case .snapping(_) = oldValue,  case let .moving(point) = state {
+            if case .Snapping(_) = oldValue,  case let .Moving(point) = state {
                 unsnapView()
                 attachView(toPoint: point)
-            } else if case .snapping(_) = oldValue,  case let .swiping(origin, direction) = state {
+            } else if case .Snapping(_) = oldValue,  case let .Swiping(origin, direction) = state {
                 unsnapView()
                 attachView(toPoint: origin)
                 pushView(fromPoint: origin, inDirection: direction)
-            } else if case .moving(_) = oldValue, case let .moving(point) = state {
+            } else if case .Moving(_) = oldValue, case let .Moving(point) = state {
                 moveView(toPoint: point)
-            } else if case .moving(_) = oldValue, case let .snapping(point) = state {
+            } else if case .Moving(_) = oldValue, case let .Snapping(point) = state {
                 detachView()
-                snapView(point)
-            } else if case .moving(_) = oldValue, case let .swiping(origin, direction) = state {
+                snapView(point: point)
+            } else if case .Moving(_) = oldValue, case let .Swiping(origin, direction) = state {
                 pushView(fromPoint: origin, inDirection: direction)
-            } else if case .swiping(_, _) = oldValue, case let .snapping(point) = state {
+            } else if case .Swiping(_, _) = oldValue, case let .Snapping(point) = state {
                 unpushView()
                 detachView()
-                snapView(point)
+                snapView(point: point)
             }
         }
     }
     
     /// To be added to view and removed
-    fileprivate class ZLPanGestureRecognizer: UIPanGestureRecognizer { }
-    fileprivate class ZLTapGestureRecognizer: UITapGestureRecognizer { }
+    private class ZLPanGestureRecognizer: UIPanGestureRecognizer { }
+    private class ZLTapGestureRecognizer: UITapGestureRecognizer { }
     
-    static fileprivate let anchorViewWidth = CGFloat(1000)
-    fileprivate var anchorView = UIView(frame: CGRect(x: 0, y: 0, width: anchorViewWidth, height: anchorViewWidth))
+    static private let anchorViewWidth = CGFloat(1000)
+    private var anchorView = UIView(frame: CGRect(x: 0, y: 0, width: anchorViewWidth, height: anchorViewWidth))
     
-    fileprivate var snapBehavior: UISnapBehavior!
-    fileprivate var viewToAnchorViewAttachmentBehavior: UIAttachmentBehavior!
-    fileprivate var anchorViewToPointAttachmentBehavior: UIAttachmentBehavior!
-    fileprivate var pushBehavior: UIPushBehavior!
+    private var snapBehavior: UISnapBehavior!
+    private var viewToAnchorViewAttachmentBehavior: UIAttachmentBehavior!
+    private var anchorViewToPointAttachmentBehavior: UIAttachmentBehavior!
+    private var pushBehavior: UIPushBehavior!
     
-    fileprivate let view: UIView
-    fileprivate let containerView: UIView
-    fileprivate let miscContainerView: UIView
-    fileprivate let animator: UIDynamicAnimator
-    fileprivate weak var swipeableView: ZLSwipeableView?
+    private let view: UIView
+    private let containerView: UIView
+    private let miscContainerView: UIView
+    private let animator: UIDynamicAnimator
+    private weak var swipeableView: ZLSwipeableView?
     
     init(view: UIView, containerView: UIView, index: Int, miscContainerView: UIView, animator: UIDynamicAnimator, swipeableView: ZLSwipeableView) {
         self.view = view
@@ -64,39 +64,37 @@ class ViewManager : NSObject {
         self.miscContainerView = miscContainerView
         self.animator = animator
         self.swipeableView = swipeableView
-        self.state = ViewManager.defaultSnappingState(view)
+        self.state = ViewManager.defaultSnappingState(view: view)
         
         super.init()
         
-        view.addGestureRecognizer(ZLPanGestureRecognizer(target: self, action: #selector(ViewManager.handlePan(_:))))
-        if swipeableView.didTap != nil {
-            self.addTapRecognizer()
-        }
+        view.addGestureRecognizer(ZLPanGestureRecognizer(target: self, action: #selector(ViewManager.handlePan(recognizer:))))
+        view.addGestureRecognizer(ZLTapGestureRecognizer(target: self, action: #selector(ViewManager.handleTap(recognizer:))))
         miscContainerView.addSubview(anchorView)
         containerView.insertSubview(view, at: index)
     }
     
-    static func defaultSnappingState(_ view: UIView) -> State {
-        return .snapping(view.convert(view.center, from: view.superview))
+    static func defaultSnappingState(view: UIView) -> State {
+        return .Snapping(view.convert(view.center, from: view.superview))
     }
     
     func snappingStateAtContainerCenter() -> State {
-        guard let swipeableView = swipeableView else { return ViewManager.defaultSnappingState(view) }
-        return .snapping(containerView.convert(swipeableView.center, from: swipeableView.superview))
+        guard let swipeableView = swipeableView else { return ViewManager.defaultSnappingState(view: view) }
+        return .Snapping(containerView.convert(swipeableView.center, from: swipeableView.superview))
     }
     
     deinit {
         if let snapBehavior = snapBehavior {
-            removeBehavior(snapBehavior)
+            removeBehavior(behavior: snapBehavior)
         }
         if let viewToAnchorViewAttachmentBehavior = viewToAnchorViewAttachmentBehavior {
-            removeBehavior(viewToAnchorViewAttachmentBehavior)
+            removeBehavior(behavior: viewToAnchorViewAttachmentBehavior)
         }
         if let anchorViewToPointAttachmentBehavior = anchorViewToPointAttachmentBehavior {
-            removeBehavior(anchorViewToPointAttachmentBehavior)
+            removeBehavior(behavior: anchorViewToPointAttachmentBehavior)
         }
         if let pushBehavior = pushBehavior {
-            removeBehavior(pushBehavior)
+            removeBehavior(behavior: pushBehavior)
         }
         
         for gestureRecognizer in view.gestureRecognizers! {
@@ -109,7 +107,7 @@ class ViewManager : NSObject {
         view.removeFromSuperview()
     }
     
-    func handlePan(_ recognizer: UIPanGestureRecognizer) {
+    @objc func handlePan(recognizer: UIPanGestureRecognizer) {
         guard let swipeableView = swipeableView else { return }
         
         let translation = recognizer.translation(in: containerView)
@@ -119,19 +117,19 @@ class ViewManager : NSObject {
         
         switch recognizer.state {
         case .began:
-            guard case .snapping(_) = state else { return }
-            state = .moving(location)
+            guard case .Snapping(_) = state else { return }
+            state = .Moving(location)
             swipeableView.didStart?(view, location)
         case .changed:
-            guard case .moving(_) = state else { return }
-            state = .moving(location)
+            guard case .Moving(_) = state else { return }
+            state = .Moving(location)
             swipeableView.swiping?(view, location, translation)
         case .ended, .cancelled:
-            guard case .moving(_) = state else { return }
+            guard case .Moving(_) = state else { return }
             if swipeableView.shouldSwipeView(view, movement, swipeableView) {
                 let directionVector = CGVector(point: translation.normalized * max(velocity.magnitude, swipeableView.minVelocityInPointPerSecond))
-                state = .swiping(location, directionVector)
-                swipeableView.swipeView(view, location: location, directionVector: directionVector)
+                state = .Swiping(location, directionVector)
+                swipeableView.swipeView(view: view, location: location, directionVector: directionVector)
             } else {
                 state = snappingStateAtContainerCenter()
                 swipeableView.didCancel?(view)
@@ -142,31 +140,25 @@ class ViewManager : NSObject {
         }
     }
     
-    func addTapRecognizer() {
-        guard !(view.gestureRecognizers ?? []).contains(where: { $0 is ZLTapGestureRecognizer }) else { return }
-
-        view.addGestureRecognizer(ZLTapGestureRecognizer(target: self, action: #selector(ViewManager.handleTap(_:))))
-    }
-    
-    func handleTap(_ recognizer: UITapGestureRecognizer) {
+    @objc func handleTap(recognizer: UITapGestureRecognizer) {
         guard let swipeableView = swipeableView, let topView = swipeableView.topView()  else { return }
         
         let location = recognizer.location(in: containerView)
         swipeableView.didTap?(topView, location)
     }
     
-    fileprivate func snapView(_ point: CGPoint) {
+    private func snapView(point: CGPoint) {
         snapBehavior = UISnapBehavior(item: view, snapTo: point)
         snapBehavior!.damping = 0.75
-        addBehavior(snapBehavior)
+        addBehavior(behavior: snapBehavior)
     }
     
-    fileprivate func unsnapView() {
+    private func unsnapView() {
         guard let snapBehavior = snapBehavior else { return }
-        removeBehavior(snapBehavior)
+        removeBehavior(behavior: snapBehavior)
     }
     
-    fileprivate func attachView(toPoint point: CGPoint) {
+    private func attachView(toPoint point: CGPoint) {
         anchorView.center = point
         anchorView.backgroundColor = UIColor.blue
         anchorView.isHidden = true
@@ -181,41 +173,41 @@ class ViewManager : NSObject {
         anchorViewToPointAttachmentBehavior!.damping = 100
         anchorViewToPointAttachmentBehavior!.length = 0
         
-        addBehavior(viewToAnchorViewAttachmentBehavior!)
-        addBehavior(anchorViewToPointAttachmentBehavior!)
+        addBehavior(behavior: viewToAnchorViewAttachmentBehavior!)
+        addBehavior(behavior: anchorViewToPointAttachmentBehavior!)
     }
     
-    fileprivate func moveView(toPoint point: CGPoint) {
+    private func moveView(toPoint point: CGPoint) {
         guard let _ = viewToAnchorViewAttachmentBehavior, let toPoint = anchorViewToPointAttachmentBehavior else { return }
         toPoint.anchorPoint = point
     }
     
-    fileprivate func detachView() {
+    private func detachView() {
         guard let viewToAnchorViewAttachmentBehavior = viewToAnchorViewAttachmentBehavior, let anchorViewToPointAttachmentBehavior = anchorViewToPointAttachmentBehavior else { return }
-        removeBehavior(viewToAnchorViewAttachmentBehavior)
-        removeBehavior(anchorViewToPointAttachmentBehavior)
+        removeBehavior(behavior: viewToAnchorViewAttachmentBehavior)
+        removeBehavior(behavior: anchorViewToPointAttachmentBehavior)
     }
     
-    fileprivate func pushView(fromPoint point: CGPoint, inDirection direction: CGVector) {
+    private func pushView(fromPoint point: CGPoint, inDirection direction: CGVector) {
         guard let _ = viewToAnchorViewAttachmentBehavior, let anchorViewToPointAttachmentBehavior = anchorViewToPointAttachmentBehavior  else { return }
         
-        removeBehavior(anchorViewToPointAttachmentBehavior)
+        removeBehavior(behavior: anchorViewToPointAttachmentBehavior)
         
         pushBehavior = UIPushBehavior(items: [anchorView], mode: .instantaneous)
         pushBehavior.pushDirection = direction
-        addBehavior(pushBehavior)
+        addBehavior(behavior: pushBehavior)
     }
     
-    fileprivate func unpushView() {
+    private func unpushView() {
         guard let pushBehavior = pushBehavior else { return }
-        removeBehavior(pushBehavior)
+        removeBehavior(behavior: pushBehavior)
     }
     
-    fileprivate func addBehavior(_ behavior: UIDynamicBehavior) {
+    private func addBehavior(behavior: UIDynamicBehavior) {
         animator.addBehavior(behavior)
     }
     
-    fileprivate func removeBehavior(_ behavior: UIDynamicBehavior) {
+    private func removeBehavior(behavior: UIDynamicBehavior) {
         animator.removeBehavior(behavior)
     }
     
